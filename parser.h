@@ -2,56 +2,89 @@
 #define PARSER_H_
 
 enum AstNodeType {
-    EXPRESSION,
     ASSIGN_STATEMENT,
-    CONST_NUM_EXPRESSION,
-    CONST_STRING_EXPRESSION,
+    PRINT_STATEMENT,
 
-    COMMAND_STATEMENT,
+    IDENTIFIER_EXPRESSION,
+    CONST_STRING_EXPRESSION,
+    CONST_NUMBER_EXPRESSION,
+
+    PREFIX_EXPRESSION,
+    INFIX_EXPRESSION,
+
+    IF_STATEMENT,
 };
 
-typedef struct CommandStatement {
+typedef struct Program {
+    struct StatementsList* list;
+} Program;
+
+typedef struct ExpessionsList {
     long size;
     long capacity;
-    char* var_name;
     struct AstNode* expressions;
-} CommandStatement;
+} ExpessionsList;
 
-typedef struct ConstNumExpression {
-    double value;
-} ConstNumExpression;
-
-typedef struct ConstStringExpression {
-    char* value;
-} ConstStringExpression;
-
-typedef struct Program {
+typedef struct StatementsList {
     long size;
     long capacity;
     struct AstNode* statements;
-} Program;
+} StatementsList;
 
 typedef struct AssignStatement {
-    char* var_name;
-    struct AstNode* assign_value;
+    struct AstNode* identifier;
+    struct AstNode* expression;
 } AssignStatement;
+
+typedef struct PrintStatement {
+    struct Token* token;
+    struct ExpessionsList expressions;
+} PrintStatement;
+
+typedef struct ConstStringExpression {
+    struct Token* token;
+} ConstStringExpression;
+
+typedef struct ConstNumberExpression {
+    struct Token* token;
+} ConstNumberExpression;
+
+typedef struct IdentifierExpression {
+    struct Token* token;
+} IdentifierExpression;
+
+typedef struct PrefixExpression {
+    struct Token* operator;
+    struct AstNode* value;
+} PrefixExpression;
+
+typedef struct InfixExpression {
+    struct Token* operator;
+    struct AstNode* left;
+    struct AstNode* right; 
+} InfixExpression;
+
+typedef struct IfStatement {
+    struct Token* token;
+    struct AstNode* condition_expression;
+    struct StatementsList* body;
+    struct StatementsList* elses;
+} IfStatement;
 
 typedef struct AstNode {
     enum AstNodeType node_type;
     union {
-        CommandStatement command_statement; 
+        AssignStatement assign_statement;
+        PrintStatement print_statement;
         ConstStringExpression const_string_expression;
-    } data;
+        ConstNumberExpression const_number_expression;
+        IdentifierExpression identifier_expression;
+        PrefixExpression prefix_expression;
+        InfixExpression infix_expression;
+        IfStatement if_statement;
+    };
 } AstNode;
 
 struct Program parse(struct TokenList tokens);
-
-typedef struct TokenPeeker {
-    long current_index;
-    struct TokenList* tokens;
-} TokenPeeker;
-
-struct Token* next(TokenPeeker* token_peeker);
-struct Token* peek(TokenPeeker* token_peeker);
 
 #endif

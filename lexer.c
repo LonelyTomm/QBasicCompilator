@@ -28,12 +28,12 @@ static char* next_char(struct CharPeeker* peeker);
 static char* peek_char(struct CharPeeker* peeker);
 
 static long read_special_char(struct CharPeeker* peeker, struct Token* token);
-static long read_float_token(struct CharPeeker* peeker, struct Token* token);
-static long read_integer_token(struct CharPeeker* peeker, struct Token* token);
+static long read_number_token(struct CharPeeker* peeker, struct Token* token);
 static long read_new_line_token(struct CharPeeker* peeker, struct Token* token);
 static long read_quoted_string_token(struct CharPeeker* peeker, struct Token* token);
 static long read_unquoted_string_token(struct CharPeeker* peeker, struct Token* token);
 static long skip_whitespaces(struct CharPeeker* peeker);
+static void string_to_lowercase(char * string);
 
 static struct TokenList new_token_list(void) {
     struct TokenList token_list;
@@ -117,8 +117,7 @@ const char* get_token_type_string(enum TokenType token_type) {
     switch (token_type) {
         case QUOTED_STRING: return "QUOTED_STRING";
         case UNQUOTED_STRING: return "UNQUOTED_STRING";
-        case INTEGER: return "INTEGER";
-        case FLOAT: return "FLOAT";
+        case NUMBER: return "NUMBER";
         case NEW_LINE: return "NEW_LINE";
 
         case COMMA: return "COMMA";
@@ -132,6 +131,12 @@ const char* get_token_type_string(enum TokenType token_type) {
 
         case OPEN_ROUND_BRACKET: return "OPEN_ROUND_BRACKET";
         case CLOSE_ROUND_BRACKET: return "CLOSE_ROUND_BRACKET";
+
+        case PLUS: return "PLUS";
+        case MINUS: return "MINUS";
+
+        case ASTERISK: return "ASTERISK";
+        case SLASH: return "SLASH";
     }
 
     return "UNKNOWN TOKEN";
@@ -172,6 +177,8 @@ static long read_unquoted_string_token(struct CharPeeker* peeker, struct Token* 
     add_char(&value, 0);
 
     token->token_type = UNQUOTED_STRING;
+
+    string_to_lowercase(value.string);
     token->value = value.string;
 
     peeker->col += read_bytes;
@@ -200,7 +207,6 @@ static long read_quoted_string_token(struct CharPeeker* peeker, struct Token* to
         char_at_pos = next_char(peeker);
     }
 
-    add_char(&value, *char_at_pos);
     add_char(&value, 0);
     read_bytes++;
     next_char(peeker);
@@ -210,6 +216,10 @@ static long read_quoted_string_token(struct CharPeeker* peeker, struct Token* to
 
     peeker->col += read_bytes;
     return read_bytes;
+}
+
+static void string_to_lowercase(char * string) {
+    for(char *p=string; *p; p++) *p=tolower(*p);
 }
 
 static long read_new_line_token(struct CharPeeker* peeker, struct Token* token) {
@@ -230,37 +240,7 @@ static long read_new_line_token(struct CharPeeker* peeker, struct Token* token) 
     return 1;
 }
 
-static long read_integer_token(struct CharPeeker* peeker, struct Token* token) {
-    long read_bytes = 0;
-    char* char_at_pos = peek_char(peeker);
-
-    if (!isdigit(*char_at_pos)) {
-        return read_bytes;
-    }
-
-    token->col = peeker->col;
-    token->row = peeker->row;
-
-    struct StringReallocator value = new_string_reallocator();
-
-    while (char_at_pos != NULL && isdigit(*char_at_pos)) {
-        add_char(&value, *char_at_pos);
-        read_bytes++;
-
-        char_at_pos = next_char(peeker);
-    }
-
-    add_char(&value, 0);
-
-    token->token_type = INTEGER;
-    token->value = value.string;
-
-    peeker->col += read_bytes;
-    return read_bytes;
-}
-
-// [TODO]: нужно проверять нашли ли мы точку и только ли одну, иначе откат пикера к изначальному состоянию
-static long read_float_token(struct CharPeeker* peeker, struct Token* token) {
+static long read_number_token(struct CharPeeker* peeker, struct Token* token) {
     long read_bytes = 0;
     char* char_at_pos = peek_char(peeker);
 
@@ -282,7 +262,7 @@ static long read_float_token(struct CharPeeker* peeker, struct Token* token) {
 
     add_char(&value, 0);
 
-    token->token_type = FLOAT;
+    token->token_type = NUMBER;
     token->value = value.string;
 
     peeker->col += read_bytes;
@@ -337,6 +317,81 @@ static long read_special_char(struct CharPeeker* peeker, struct Token* token) {
         return 1;
     }
 
+    if (*char_at_pos == '+') {
+        struct StringReallocator value = new_string_reallocator();
+        add_char(&value, '+');
+        add_char(&value, 0);
+
+        next_char(peeker);
+        token->col = peeker->col;
+        token->row = peeker->row;
+        token->token_type = PLUS;
+        token->value = value.string;
+
+        peeker->col++;
+        return 1;
+    }
+
+    if (*char_at_pos == '/') {
+        struct StringReallocator value = new_string_reallocator();
+        add_char(&value, '/');
+        add_char(&value, 0);
+
+        next_char(peeker);
+        token->col = peeker->col;
+        token->row = peeker->row;
+        token->token_type = SLASH;
+        token->value = value.string;
+
+        peeker->col++;
+        return 1;
+    }
+
+    if (*char_at_pos == '*') {
+        struct StringReallocator value = new_string_reallocator();
+        add_char(&value, '*');
+        add_char(&value, 0);
+
+        next_char(peeker);
+        token->col = peeker->col;
+        token->row = peeker->row;
+        token->token_type = ASTERISK;
+        token->value = value.string;
+
+        peeker->col++;
+        return 1;
+    }
+
+    if (*char_at_pos == '(') {
+        struct StringReallocator value = new_string_reallocator();
+        add_char(&value, '(');
+        add_char(&value, 0);
+
+        next_char(peeker);
+        token->col = peeker->col;
+        token->row = peeker->row;
+        token->token_type = OPEN_ROUND_BRACKET;
+        token->value = value.string;
+
+        peeker->col++;
+        return 1;
+    }
+
+    if (*char_at_pos == ')') {
+        struct StringReallocator value = new_string_reallocator();
+        add_char(&value, ')');
+        add_char(&value, 0);
+
+        next_char(peeker);
+        token->col = peeker->col;
+        token->row = peeker->row;
+        token->token_type = CLOSE_ROUND_BRACKET;
+        token->value = value.string;
+
+        peeker->col++;
+        return 1;
+    }
+
     return 0;
 }
 
@@ -370,13 +425,7 @@ struct TokenList read_tokens(char* file_buff, long fsize) {
             continue;
         }
 
-        read_bytes = read_integer_token(&peeker, &token);
-        if (read_bytes != 0) {
-            add_token(&tokens, token);
-            continue;
-        }
-
-        read_bytes = read_float_token(&peeker, &token);
+        read_bytes = read_number_token(&peeker, &token);
         if (read_bytes != 0) {
             add_token(&tokens, token);
             continue;
@@ -389,7 +438,7 @@ struct TokenList read_tokens(char* file_buff, long fsize) {
         }
 
         printf("Undefined token at position %ld \n", peeker.current_pos);
-        break;
+        exit(1);
     }
 
     return tokens;

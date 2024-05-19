@@ -4,12 +4,16 @@
 enum TokenType {
     QUOTED_STRING,
     UNQUOTED_STRING,
-    INTEGER,
-    FLOAT,
+    NUMBER,
     NEW_LINE,
 
     COMMA,
     SEMICOLON,
+    MINUS,
+    PLUS,
+    SLASH,
+    ASTERISK,
+    BANG,
 
     ASSIGN_OPERATOR,
 

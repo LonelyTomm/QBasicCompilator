@@ -1,2 +1,4 @@
-print "HELLO" 150 = ;
-print "FU, BYE"
+IF 11 then
+    PRINT 10 + (a + 6) * 7;"HELLO","I'm lonely"
+END if
+PRINT 10 + (a + 6) * 7;"HELLO","I'm lonely"

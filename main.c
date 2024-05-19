@@ -31,9 +31,8 @@ int main(void) {
         );
     }
 
-    // struct Program program = parse(tokens);
-
-    // printf("program size is %ld \n", program.size);
+    struct Program program = parse(tokens);
+    printf("program size is %ld \n", program.list->size);
 
     free(file_buff);
 }
