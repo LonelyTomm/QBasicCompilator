@@ -13,6 +13,8 @@ enum AstNodeType {
     INFIX_EXPRESSION,
 
     IF_STATEMENT,
+    LOOP_STATEMENT,
+    FOR_STATEMENT,
 };
 
 typedef struct Program {
@@ -71,6 +73,22 @@ typedef struct IfStatement {
     struct StatementsList* elses;
 } IfStatement;
 
+typedef struct LoopStatement {
+    struct Token* token;
+    struct Token* loop_type_token;
+    struct AstNode* condition_expression;
+    struct StatementsList* body;
+} LoopStatement;
+
+typedef struct ForStatement {
+    struct Token* token;
+    struct AstNode* control_identifier_expression;
+    struct AstNode* initial_expression;
+    struct AstNode* end_value_expression;
+    struct AstNode* step_expression;
+    struct StatementsList* body;
+} ForStatement;
+
 typedef struct AstNode {
     enum AstNodeType node_type;
     union {
@@ -82,6 +100,8 @@ typedef struct AstNode {
         PrefixExpression prefix_expression;
         InfixExpression infix_expression;
         IfStatement if_statement;
+        LoopStatement loop_statement;
+        ForStatement for_statement;
     };
 } AstNode;
 

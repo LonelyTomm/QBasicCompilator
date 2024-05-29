@@ -1,4 +1,16 @@
 IF 11 then
     PRINT 10 + (a + 6) * 7;"HELLO","I'm lonely"
+elseif 15 then
+    PRINT "URUGUAY";"HI"
+else 
+    print "let's go"
 END if
+do while 11
+    print "go"
+loop
+
+
+for i = 0 to 5 step 1
+    print "go home"
+next i
 PRINT 10 + (a + 6) * 7;"HELLO","I'm lonely"

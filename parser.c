@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-struct StatementsList new_statements_list(void);
+struct StatementsList* new_statements_list(void);
 void add_statement_to_list(struct StatementsList* list, struct AstNode statement);
 
 struct ExpessionsList new_expressions_list(void);
@@ -19,7 +19,7 @@ struct TokenPeeker new_token_peeker(struct TokenList* tokens);
 struct Token* next(TokenPeeker* token_peeker);
 struct Token* peek(TokenPeeker* token_peeker);
 
-struct StatementsList parse_statements(struct TokenPeeker* token_peeker);
+struct StatementsList* parse_statements(struct TokenPeeker* token_peeker);
 struct AstNode* parse_print_statement(struct TokenPeeker* token_peeker);
 struct AstNode* parse_assign_statement(struct TokenPeeker* token_peeker);
 
@@ -35,7 +35,6 @@ void skip_newlines(struct TokenPeeker* token_peeker);
 // END DECLARATIONS
 
 void print_node(struct AstNode* node) {
-    /// printf("ENTERED tt is %d\n", node->node_type);
     if (node == NULL) {
         printf("UNDEFINED ");
         return;
@@ -73,22 +72,54 @@ void print_node(struct AstNode* node) {
         printf("if ");
         print_node(node->if_statement.condition_expression);
         printf(" then\n");
-
         for(int i = 0; i < node->if_statement.body->size;i++) {
             printf("    ");
             print_node(&node->if_statement.body->statements[i]);
             printf("\n");
         }
 
+        if (node->if_statement.elses != NULL) {
+            for(int i = 0; i < node->if_statement.elses->size;i++) {
+                print_node(&node->if_statement.elses->statements[i]);
+            }
+        }
         printf("end if\n");
+    } else if (node->node_type == LOOP_STATEMENT) {
+        printf("%s %s ", node->loop_statement.token->value, node->loop_statement.loop_type_token->value);
+        print_node(node->loop_statement.condition_expression);
+        printf("\n");
+
+        if (node->loop_statement.body != NULL) {
+            for(int i = 0; i < node->loop_statement.body->size;i++) {
+                print_node(&node->loop_statement.body->statements[i]);
+            }
+        }
+
+        printf("loop \n");
+    } else if (node->node_type == FOR_STATEMENT) {
+        printf("for %s = ", node->for_statement.control_identifier_expression->identifier_expression.token->value);    
+        print_node(node->for_statement.initial_expression);
+        printf("TO ");
+        print_node(node->for_statement.end_value_expression);
+        printf("STEP ");
+        print_node(node->for_statement.step_expression);
+        printf("\n");
+
+        if (node->for_statement.body != NULL) {
+            for(int i = 0; i < node->for_statement.body->size;i++) {
+                print_node(&node->for_statement.body->statements[i]);
+            }
+        }
+
+        printf("end for \n");
     }
 }
 
-struct StatementsList new_statements_list(void) {
-    struct StatementsList list;
-    list.capacity = 0;
-    list.size = 0;
-    list.statements = NULL;
+struct StatementsList* new_statements_list(void) {
+    struct StatementsList* list = (struct StatementsList*)malloc(sizeof(struct StatementsList));
+    list->capacity = 0;
+    list->size = 0;
+    list->statements = NULL;
 
     return list;
 }
@@ -317,6 +348,113 @@ struct AstNode* parse_print_statement(struct TokenPeeker* token_peeker) {
     return statement;
 }
 
+struct AstNode* parse_loop_statement(struct TokenPeeker* token_peeker) {
+    struct AstNode* node = (struct AstNode*)malloc(sizeof(struct AstNode));
+    node->node_type = LOOP_STATEMENT;
+
+    struct Token* token = peek(token_peeker);
+    node->loop_statement.token = token;
+
+    token = next(token_peeker);
+
+    if (
+        token == NULL ||
+        token->token_type != UNQUOTED_STRING ||
+        (
+            strcmp(token->value, "until") != 0 && 
+            strcmp(token->value, "while") != 0 
+        )
+    ) {
+        exit(150);
+    } 
+    
+    node->loop_statement.loop_type_token = token;
+    token = next(token_peeker);
+    node->loop_statement.condition_expression = parse_expression(token_peeker, -1);
+    skip_newlines(token_peeker);
+
+    node->loop_statement.body = parse_statements(token_peeker);
+
+    token = peek(token_peeker);
+
+    if (
+        token == NULL ||
+        token->token_type != UNQUOTED_STRING ||
+        strcmp(token->value, "loop") != 0
+    ) {
+        exit(150);
+    } 
+    next(token_peeker);
+
+    return node;
+}
+
+struct AstNode* parse_for_statement(struct TokenPeeker* token_peeker) {
+    struct AstNode* node = (struct AstNode*)malloc(sizeof(struct AstNode));
+    node->node_type = FOR_STATEMENT;
+    node->for_statement.token = peek(token_peeker);
+    
+    next(token_peeker);
+    node->for_statement.control_identifier_expression = parse_node_from_token(token_peeker);
+    
+    struct Token* token = peek(token_peeker);
+    if (token == NULL || token->token_type != ASSIGN_OPERATOR) {
+        exit(201);
+    }
+
+    next(token_peeker);
+    node->for_statement.initial_expression = parse_expression(token_peeker, -1);
+
+    token = peek(token_peeker);
+    if (
+        token == NULL || 
+        token->token_type != UNQUOTED_STRING || 
+        strcmp(token->value, "to") != 0
+    ) {
+        exit(202);
+    }
+    
+    next(token_peeker);
+    node->for_statement.end_value_expression = parse_expression(token_peeker, -1); 
+
+    token = peek(token_peeker);
+    if (token == NULL) {
+        exit(203);
+    } else if (token->token_type == UNQUOTED_STRING && strcmp(token->value, "step") == 0) {
+        next(token_peeker);
+        node->for_statement.step_expression = parse_expression(token_peeker, -1);
+    } else {
+        node->for_statement.step_expression = NULL; 
+    }
+
+    node->for_statement.body = parse_statements(token_peeker);
+   
+    token = peek(token_peeker);
+    if (token == NULL) {
+        exit(204);
+    }
+
+    if (token->token_type != UNQUOTED_STRING || strcmp(token->value, "next") != 0) {
+        exit(206);
+    }
+
+    token = next(token_peeker);
+
+    if (token == NULL) {
+        exit(207);
+    }
+
+    if (
+        token->token_type != UNQUOTED_STRING || 
+        strcmp(token->value, node->for_statement.control_identifier_expression->identifier_expression.token->value) != 0
+    ) {
+        exit(208);
+    }
+
+    next(token_peeker);
+    return node;
+}
+
 struct AstNode* parse_if_statement(struct TokenPeeker* token_peeker) {
     struct AstNode* node = (struct AstNode*)malloc(sizeof(struct AstNode));
     node->node_type = IF_STATEMENT;
@@ -332,8 +470,9 @@ struct AstNode* parse_if_statement(struct TokenPeeker* token_peeker) {
     next(token_peeker);
 
     skip_newlines(token_peeker);
-    struct StatementsList list = parse_statements(token_peeker);
-    node->if_statement.body = &list;
+    struct StatementsList* list = parse_statements(token_peeker);
+
+    node->if_statement.body = list;
     skip_newlines(token_peeker);
 
     token = peek(token_peeker);
@@ -346,36 +485,72 @@ struct AstNode* parse_if_statement(struct TokenPeeker* token_peeker) {
             strcmp(token->value, "else") == 0
         )
     ) {
+        struct StatementsList* elsesList = new_statements_list();
+        node->if_statement.elses = elsesList;
         while (token != NULL && token->token_type == UNQUOTED_STRING && 
         (
             strcmp(token->value, "elseif") == 0 ||
             strcmp(token->value, "else") == 0
         )) {
             if (strcmp(token->value, "else") == 0) {
+                struct AstNode* elseNode = (struct AstNode*)malloc(sizeof(struct AstNode));
+                elseNode->node_type = IF_STATEMENT;
+                elseNode->if_statement.token = peek(token_peeker);
+                elseNode->if_statement.elses = NULL;
+
                 next(token_peeker);
                 skip_newlines(token_peeker);
 
-                struct StatementsList list = parse_statements(token_peeker);
+                struct StatementsList* elseBodyList = parse_statements(token_peeker);
                 skip_newlines(token_peeker);
+
+                struct Token* trueToken = (struct Token*)malloc(sizeof(struct Token)); 
+                trueToken->token_type = NUMBER;
+                trueToken->value = "1";  
+
+                struct AstNode* trueExpression = (struct AstNode*)malloc(sizeof(struct AstNode));
+                trueExpression->node_type = CONST_NUMBER_EXPRESSION;
+                trueExpression->const_number_expression.token = trueToken;
+
+                elseNode->if_statement.body = elseBodyList;
+                elseNode->if_statement.condition_expression = trueExpression;
+
+                add_statement_to_list(node->if_statement.elses, *elseNode);
+                token = peek(token_peeker);
+            } else {
+                struct AstNode* elseNode = (struct AstNode*)malloc(sizeof(struct AstNode));
+                elseNode->node_type = IF_STATEMENT;
+                elseNode->if_statement.token = peek(token_peeker);
+                elseNode->if_statement.elses = NULL;
+
+                next(token_peeker);
+                skip_newlines(token_peeker);
+
+                elseNode->if_statement.condition_expression = parse_expression(token_peeker, -1);
+
+                token = peek(token_peeker);
+                if (token->token_type != UNQUOTED_STRING || strcmp(token->value, "then") != 0) {
+                    exit(20);
+                }
+                next(token_peeker);
+                skip_newlines(token_peeker);
+                struct StatementsList* elseBodyList = parse_statements(token_peeker);
+                skip_newlines(token_peeker);
+
+                elseNode->if_statement.body = elseBodyList;
+                add_statement_to_list(node->if_statement.elses, *elseNode);
+                token = peek(token_peeker);
             }
-
-
         }
     }
 
     if (token->token_type == UNQUOTED_STRING && strcmp(token->value, "end") == 0) {
-    
+        next(token_peeker);    
+        next(token_peeker);
+        skip_newlines(token_peeker);
     } else {
         exit(353);
     }
-
-    token = next(token_peeker);
-    if (token->token_type != UNQUOTED_STRING || strcmp(token->value, "if") != 0) {
-        exit(19);
-    }
-
-    next(token_peeker);
-    skip_newlines(token_peeker);
 
     return node;
 }
@@ -386,18 +561,23 @@ void skip_newlines(struct TokenPeeker* token_peeker) {
     }
 }
 
-struct StatementsList parse_statements(struct TokenPeeker* token_peeker) {
-    struct StatementsList list = new_statements_list();
+struct StatementsList* parse_statements(struct TokenPeeker* token_peeker) {
+    struct StatementsList* list = new_statements_list();
     while (peek(token_peeker) != NULL) {
+        skip_newlines(token_peeker);
+
         struct Token* first_token = peek(token_peeker);
-        
+        if (first_token == NULL) {
+            exit(120);      
+        }
+
         if (
             first_token->token_type == UNQUOTED_STRING &&
             strcmp(first_token->value, "print") == 0
         ) {
             struct AstNode* print_statement = parse_print_statement(token_peeker);
-            print_node(print_statement);
-            add_statement_to_list(&list, *print_statement);
+            // print_node(print_statement);
+            add_statement_to_list(list, *print_statement);
             continue;
         }
 
@@ -407,24 +587,38 @@ struct StatementsList parse_statements(struct TokenPeeker* token_peeker) {
         ) {
             struct AstNode* if_statement = parse_if_statement(token_peeker);
             print_node(if_statement);
-            add_statement_to_list(&list, *if_statement);
+            add_statement_to_list(list, *if_statement);
             continue;
         }
 
-        // if (
-        //     first_token->token_type == UNQUOTED_STRING &&
-        //     strcmp(first_token->value, "if") == 0
-        // ) {
-        //     // struct AstNode print_statement = parse_print_statement(&token_peeker);
-        //     // add_statement_to_program(&program, print_statement);
-        //     continue;
-        // }
+        if (
+            first_token->token_type == UNQUOTED_STRING &&
+            strcmp(first_token->value, "do") == 0
+        ) {
+            struct AstNode* loop_statement = parse_loop_statement(token_peeker);
+            print_node(loop_statement);
+            add_statement_to_list(list, *loop_statement);
+            continue;
+        }
+
+        if (
+            first_token->token_type == UNQUOTED_STRING &&
+            strcmp(first_token->value, "for") == 0
+        ) {
+            struct AstNode* for_statement = parse_for_statement(token_peeker);
+            print_node(for_statement);
+            add_statement_to_list(list, *for_statement);
+            continue;
+        }
 
         if (
             first_token->token_type == UNQUOTED_STRING &&
             (
                 strcmp(first_token->value, "end") == 0 ||
-                strcmp(first_token->value, "else") == 0
+                strcmp(first_token->value, "else") == 0 ||
+                strcmp(first_token->value, "elseif") == 0 ||
+                strcmp(first_token->value, "loop") == 0 ||
+                strcmp(first_token->value, "next") == 0
             )
         ) {
             return list;
@@ -433,12 +627,14 @@ struct StatementsList parse_statements(struct TokenPeeker* token_peeker) {
         // COULDN'T RECOGNIZE OPERATOR SO PROBABLY IS ASSIGNMENT
         if (first_token->token_type == UNQUOTED_STRING) {
             struct AstNode* assign_statement = parse_assign_statement(token_peeker);
-            print_node(assign_statement);
-            add_statement_to_list(&list, *assign_statement);
+            // print_node(assign_statement);
+            add_statement_to_list(list, *assign_statement);
             continue;
         }
 
-        exit(1);
+        printf("undefined token is %s \n", first_token->value);
+        printf("undefined token position is %d \n", first_token->row);
+        exit(163);
     }
 
     return list;
@@ -448,8 +644,8 @@ struct Program parse(struct TokenList tokens) {
     struct Program program;
     struct TokenPeeker token_peeker = new_token_peeker(&tokens);
 
-    struct StatementsList list = parse_statements(&token_peeker);
-    program.list = &list;
+    struct StatementsList* list = parse_statements(&token_peeker);
+    program.list = list;
 
     return program;
 }
